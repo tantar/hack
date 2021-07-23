@@ -29,7 +29,7 @@ for i in d_sets:
     else:
         cohort_arms = list(pd.read_csv(i, usecols=["study_arm"]).study_arm.unique())
     cohort_arms = [cohort_name + j for j in cohort_arms]
-    study_arms = study_arms + sort(cohort_arms)
+    study_arms = study_arms + cohort_arms
 
 
 CST = st.selectbox("Cohort Selection Type", ["Preset Cohorts", "Choose-Your-Own Cohorts"])
