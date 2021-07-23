@@ -31,6 +31,7 @@ for i in d_sets:
     cohort_arms = [cohort_name + j for j in cohort_arms]
     study_arms = study_arms + cohort_arms
 
+study_arms.sort()
 
 CST = st.selectbox("Cohort Selection Type", ["Preset Cohorts", "Choose-Your-Own Cohorts"])
 
