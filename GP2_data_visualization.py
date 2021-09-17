@@ -12,55 +12,136 @@ from lifelines import KaplanMeierFitter
 import matplotlib.pyplot as plt
 pd.set_option('display.max_rows', 1000)
 
+@st.cache
+def MeanSD(series) :
+    mean = series.mean().round(1)
+    SD = series.std().round(1)
+    out = str(mean) + "(" + str(SD) + ")"
+    return out
+@st.cache
+def MedQ13(series) :
+    median = series.median().round(1)
+    SD = series.quantile([.25,.75])
+    out = str(median) + "[" + str(series.quantile(.25).round(1)) + "," + str(series.quantile(.75).round(1))  + "]"
+    return out
+
 # Set up the general format for the app
 st.title("GP2 Data Visualization Tool")
+mode = st.sidebar.radio("Mode",["Basic","Advanced"])
 st.sidebar.title("Options")
 
+files = glob.glob(f'*.csv')
 d_sets = glob.glob(f'data/*.csv')
 d_names = [re.sub("[processed.csvata\\\\]", "", i) for i in d_sets]
 
 study_arms = list()
+info = pd.DataFrame()
 
-for i in d_sets:
-    cohort_name = re.sub("[processed.csvata\\\\]", "", i)
+ref = pd.read_csv("Reference.csv")
 
-    if cohort_name == "LS1_":
-        cohort_arms = list(pd.read_csv(i, usecols=["Phenotype"]).Phenotype.unique())
-    else:
-        cohort_arms = list(pd.read_csv(i, usecols=["study_arm"]).study_arm.unique())
-    cohort_arms = [cohort_name + j for j in cohort_arms]
-    study_arms = study_arms + cohort_arms
+files = glob.glob(f'*.csv')
 
-study_arms.sort()
+if any(i not in files for i in ["study_arms.csv","info_table.csv"]):
+    st.warning("Missing Files Detected, Rewriting Study Arms and Info Table")
+    for dn in d_sets:
+        cohort_name = re.sub("[_processed.csvata\\\\]", "", dn)
+        cohort = pd.read_csv(dn)
 
-CST = st.selectbox("Cohort Selection Type", ["Preset Cohorts", "Choose-Your-Own Cohorts"])
+        if cohort_name == "LS1":
+                cohort.loc[:, "study_arm"] = [cohort_name + "_" + i for i in cohort.Phenotype]
+        else:
+                cohort.loc[:, "study_arm"] = [cohort_name + "_" + i for i in cohort.study_arm]
+
+        study_arms = study_arms + list(cohort.study_arm.unique())
+
+        study_arms.sort()
+        tinfo2 = pd.DataFrame()
+
+
+        for j in cohort.study_arm.unique():
+            tinfo = pd.DataFrame(data={'Study Arm': j,
+                                       'N': len(cohort.loc[(cohort.study_arm == j), "participant_id"].unique()),
+                                       'N_OBS': cohort.loc[(cohort.study_arm == j), "participant_id"].count(),
+                                       'Mean BL Age': MeanSD(
+                                           cohort.loc[(cohort.study_arm == j), "age_at_baseline"]),
+                                       'Median BL DurDx': MedQ13(pd.Series([i - j for i, j in
+                                                                            zip(cohort.age_at_baseline,
+                                                                                cohort.age_at_diagnosis)])),
+                                       'FU Time': (cohort.drop_duplicates(subset="participant_id", keep="last").loc[
+                                                       (cohort.study_arm == j), "visit_month"].mean() / 12),
+                                       'Visit Date': ["X" if "date_visit" in cohort.columns else " "],
+                                       'Family History': ["X" if "family_hx_1st" in cohort.columns else " "],
+                                       'Vital': ["X" if all(elem in cohort.columns for elem in list(
+                                           ref.loc[ref.Modality == "Vital", "Item"])) else " "],
+                                       'UPDRS': [
+                                           "X" if "mds_updrs_part_i_summary_score" in cohort.columns else " "],
+                                       'MoCA': ["X" if "moca_total_score" in cohort.columns else " "],
+                                       'SCOPA-COG': ["X" if "scopa_cog_total_score" in cohort.columns else " "],
+                                       'RBDSQ': ["X" if "rbd_summary_score" in cohort.columns else " "],
+                                       'ESS': ["X" if "ess_total_score" in cohort.columns else " "],
+                                       'PDQ39': ["X" if "pdq39_discomfort_score" in cohort.columns else " "],
+                                       'Depression': ["X" if any(i in cohort.columns for i in ["gds15_total_score",
+                                                                                               "depress_test_score"]) else " "],
+                                       'Olfactory': ["X" if "smell_test_results" in cohort.columns else " "],
+                                       },
+
+                                 index=[0])
+            tinfo2 = tinfo2.append(tinfo)
+
+        info = info.append(tinfo2)
+
+    pd.Series(study_arms).to_csv("study_arms.csv")
+    info.to_csv("info_table.csv",index=False)
+else:
+    study_arms = list(pd.read_csv("study_arms.csv").iloc[:,1])
+    info = pd.read_csv("info_table.csv")
+
+if mode == "Advanced":
+    CST = st.selectbox("Cohort Selection Type", ["Preset Cohorts", "Choose-Your-Own Cohorts"])
+else:
+    COI = "cohort"
+    CST = "Preset Cohorts"
+    OD = "No Comparison"
 
 if CST == "Preset Cohorts":
-    select_data = st.multiselect("Select Datasets", study_arms,
-                                 [x for x in study_arms if "_PD" in x])
+        select_data = st.multiselect("Select Datasets", study_arms,
+                                     [x for x in study_arms if "_PD" in x])
 else:
-    select_data = st.multiselect("What study arms are in your cohort of interest (COI)?", study_arms,
-                                 [x for x in study_arms if "_PD" in x])
+        select_data = st.multiselect("What study arms are in your cohort of interest (COI)?", study_arms,
+                                     [x for x in study_arms if "_PD" in x])
 
-    COI = st.text_input("Cohort Name")
-    OD = st.selectbox("What will this cohort be compared to?",
-                      ["No Comparison", "All Others", "All Other PD", "All Other HC"])
+        COI = st.text_input("Cohort Name")
+        OD = st.selectbox("What will this cohort be compared to?",
+                          ["No Comparison", "All Others", "All Other PD", "All Other HC"])
 
 ###----------------------------------------------------------------------------------------------
 ###This section of code performs data cleaning for output in streamlit
 ###----------------------------------------------------------------------------------------------
-ref = pd.read_csv("Reference.csv")
 
 cols = list(ref.Item)
 
 d = pd.DataFrame()
 
+#Only loads d_sets already processed
+d_set_target = pd.Series(i[0] for i in pd.Series(select_data).str.split("_")).unique()
+for j in d_set_target:
+    d_sets2 = [d for d in d_sets if j in d]
+
 for dn in d_sets:
+    cohort_name = re.sub("[_processed.csvata\\\\]", "", dn)
+    cohort = pd.read_csv(dn) #usecols = ['participant_id',"visit_month","study_arm","Phenotype",'primary_diagnosis',"age_at_baseline","age_at_diagnosis"])
+
+    if cohort_name == "LS1":
+        cohort.loc[:,"study_arm"] = [cohort_name + "_" + i for i in cohort.Phenotype]
+    else:
+        cohort.loc[:,"study_arm"] = [cohort_name + "_" + i for i in cohort.study_arm]
+
     select_arms = [x.replace(re.sub("[processed.csvata\\\\]", "", dn), '') for x in select_data if re.sub("[_processed.csvata\\\\]", "", dn) in x]
     dat = pd.read_csv(dn)
     d1 = dat[dat.study_arm.isin(select_arms)]
 
-    if CST == "Preset Cohorts":
+
+    if (mode == "Advanced") & (CST == "Preset Cohorts"):
         d1["cohort"] = re.sub("[_processed.csvata\\\\]", "", dn)
     else:
         if COI == "":
@@ -83,6 +164,9 @@ for dn in d_sets:
 
     d = pd.concat([d,d1], ignore_index=True, axis=0)
 
+
+
+
 d1 = d1.loc[:, d1.columns.isin(cols)]
 
 t1 = d1.copy()
@@ -91,30 +175,16 @@ if d.empty:
     st.warning("Please Select a Cohort")
     st.stop()
 
-if st.sidebar.checkbox("Show Substudy Info"):
-    st.sidebar.markdown("""
-  We can use PPMI, BioFIND and PDBP in the current version. Please pick the study_arms of interest.    
-  **PPMI substudies**
-  * PPMI_PD/HC/SWEDD: original cohorts - PD patients, SWEDDS and contros
-  * PPMI_PRODROMAL - people with prodromal symptoms (hyposmia or DATSCAN deficit)
-  * PPMI_GENPD/GENUN: genetic cohort - affected/unaffected
-  * PPMI_REGPD/REGUN: genetic registry - affected/unaffected
-
-  **PDBP substudies**   
-  * 202: N = 200,  1-year, PD and other mimicking diseases plus controls
-  * 204: N = 600,  cross-sectional, PD and controls
-  * 205: N = 120, 5-year, 
-  * 206: N = 240, 4-year
-  * 207: N = 270, 3-year. PD and other mimicking diseases
-  * 208: N = 75, 3-year
-  """)
-
 cats = list(ref.loc[ref.ItemType == "string", "Item"])
 
-# Creating checkboxes and slide bars for dataset, diagram choice, and variable of choice
-viz = st.sidebar.selectbox("Choose a Visualization", ["Tables", "Scatter Plot","Line Plot",
-                                                      "Bar Graph","Baseline Histogram",
-                                                      "Sankey Diagram", "Kaplan-Meier Survival"])
+if mode == "Basic":
+    # Creating checkboxes and slide bars for dataset, diagram choice, and variable of choice
+    viz = st.sidebar.selectbox("Choose a Visualization", ["Tables", "Scatter Plot","Bar Graph","Baseline Histogram", "Kaplan-Meier Survival"])
+if mode == "Advanced":
+    # Creating checkboxes and slide bars for dataset, diagram choice, and variable of choice
+    viz = st.sidebar.selectbox("Choose a Visualization", ["Tables", "Scatter Plot","Line Plot",
+                                                          "Bar Graph","Baseline Histogram",
+                                                          "Sankey Diagram", "Kaplan-Meier Survival"])
 
 d.loc[:, "HY"] = d.hoehn_and_yahr_stage
 d = d.rename({"mds_updrs_part_i_summary_score": "UPDRS1",
@@ -122,6 +192,11 @@ d = d.rename({"mds_updrs_part_i_summary_score": "UPDRS1",
               "mds_updrs_part_iii_summary_score": "UPDRS3",
               "mds_updrs_part_iv_summary_score": "UPDRS4",
               "moca_total_score": "MoCA"}, axis=1)
+
+# This code was used to subset PDBP patients based on those with genetic data
+PDBPs = pd.read_csv("PDBP_sample.csv")
+PDBPs = PDBPs[PDBPs.Original_genotypeID.notna()]
+d = d[d.participant_id.isin(PDBPs.Original_clinicalID)]
 
 # Essential Time Variables are Created
 d.loc[:, "BL_durdx"] = d.age_at_baseline - d.age_at_diagnosis
@@ -163,8 +238,13 @@ d.loc[:, 'rigidity'] = ["Yes" if i > 0 else "No" for i in d.loc[:, ["code_upd230
 d.loc[:, 'resting_tremor'] = ["Yes" if i > 0 else "No" for i in d.loc[:, ["code_upd2317a_rest_tremor_amplitude_right_upper_extremity","code_upd2317b_rest_tremor_amplitude_left_upper_extremity",
                                        "code_upd2317c_rest_tremor_amplitude_right_lower_extremity","code_upd2317d_rest_tremor_amplitude_left_lower_extremity",
                                        "code_upd2317e_rest_tremor_amplitude_lip_or_jaw", "code_upd2318_consistency_of_rest_tremor"]].sum(axis=1, skipna=True)]
+
+cats = cats + ["bradykinesia","rigidity","resting_tremor","hx_dementia"]
+
 nnml = d.columns[~d.columns.isin(cats)]
 
+if st.checkbox("Show Study Arm Info Table"):
+    st.write(info)
 ###----------------------------------------------------------------------------------------------###
 ###The following code is reponsible for producing the scatterplots
 ###----------------------------------------------------------------------------------------------'''
@@ -232,12 +312,12 @@ if viz == "Tables":
         # non-normal variables
         nonnormal = [i for i in nnml if i in columns]
 
+
     if foc == "Non-Motor":
         columns = ["gds15_total_score", 'depress_test_name', 'depress_test_score', "MoCA",
                    'clinical_dx_depression', 'clinical_dx_insomnia',
                    'pdq39_mobility_score', 'pdq39_adl_score',
                    'smell_test_name', 'smell_test_score',
-                   'hx_dementia',
                    'pdq39_emotional_score', 'pdq39_stigma_score', 'pdq39_social_score',
                    'pdq39_cognition_score', 'pdq39_communication_score',
                    'pdq39_discomfort_score', ]
