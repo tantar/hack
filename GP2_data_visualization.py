@@ -140,8 +140,7 @@ d_sets2 = list()
 for j in d_set_target:
     dst = [d for d in d_sets if j in d]
     d_sets2 = d_sets2 + dst
-
-
+    
 for dn in d_sets2:
     cohort_name = re.sub("[_procesdvat.\\\\]", "", dn)
     cohort = pd.read_csv(dn) #usecols = ['participant_id',"visit_month","study_arm","Phenotype",'primary_diagnosis',"age_at_baseline","age_at_diagnosis"])
@@ -155,6 +154,8 @@ for dn in d_sets2:
     select_arms = [x.replace(re.sub("[procesdvat.\\\\]", "", dn), '') for x in select_data if re.sub("[procesdvat.\\\\]", "", dn) in x]
 
     dat = pd.read_csv(dn)
+    
+    st.write(dat)
 
     if cohort_name not in ["LS1","PROBAND"]:
         d1 = dat[dat.study_arm.isin(select_arms)]
