@@ -10,7 +10,7 @@ import glob
 import tableone as tab1
 from lifelines import KaplanMeierFitter
 import matplotlib.pyplot as plt
-pd.set_option('display.max_rows', 1000)
+# pd.set_option('display.max_rows', 1000)
 
 @st.cache
 def MeanSD(series) :
@@ -25,29 +25,31 @@ def MedQ13(series) :
     out = str(median) + "[" + str(series.quantile(.25).round(1)) + "," + str(series.quantile(.75).round(1))  + "]"
     return out
 
-# Set up the general format for the app
+# Set up the headers for the app
 st.title("GP2 Data Visualization Tool")
 mode = st.sidebar.radio("Mode",["Basic","Advanced"])
 st.sidebar.title("Options")
 
+#Creates list of file names, datasets, and dataset names
 files = glob.glob(f'*.csv')
 d_sets = glob.glob(f'data/*.csv')
-d_names = [re.sub("[processed.csvata\\\\]", "", i) for i in d_sets]
+d_names = [re.sub("[procesdvat.\\\\]", "", i) for i in d_sets]
 
-study_arms = list()
-info = pd.DataFrame()
-
+#The Reference sheet contains info on all possible columns in GP2, facilitating easier categorization for any cohort
 ref = pd.read_csv("Reference.csv")
 
-files = glob.glob(f'*.csv')
+#If study_arms and info_table need to be produced from scratch, the data files are initialized here
+study_arms = list()
+info = pd.DataFrame()
 
 if any(i not in files for i in ["study_arms.csv","info_table.csv"]):
     st.warning("Missing Files Detected, Rewriting Study Arms and Info Table")
     for dn in d_sets:
-        cohort_name = re.sub("[_processed.csvata\\\\]", "", dn)
+        cohort_name = re.sub("[_procesdvat.\\\\]", "", dn)
         cohort = pd.read_csv(dn)
 
-        if cohort_name == "LS1":
+        # LS1 is unique in that it's study_arm refers to an experimental arm rather than phenotypic one
+        if "LS1" in cohort_name:
                 cohort.loc[:, "study_arm"] = [cohort_name + "_" + i for i in cohort.Phenotype]
         else:
                 cohort.loc[:, "study_arm"] = [cohort_name + "_" + i for i in cohort.study_arm]
@@ -56,7 +58,6 @@ if any(i not in files for i in ["study_arms.csv","info_table.csv"]):
 
         study_arms.sort()
         tinfo2 = pd.DataFrame()
-
 
         for j in cohort.study_arm.unique():
             tinfo = pd.DataFrame(data={'Study Arm': j,
@@ -90,19 +91,23 @@ if any(i not in files for i in ["study_arms.csv","info_table.csv"]):
 
         info = info.append(tinfo2)
 
-    pd.Series(study_arms).to_csv("study_arms.csv")
+    pd.Series(study_arms).to_csv("study_arms.csv",index=False)
     info.to_csv("info_table.csv",index=False)
 else:
     study_arms = list(pd.read_csv("study_arms.csv").iloc[:,1])
     info = pd.read_csv("info_table.csv")
 
+#In Advanced mode, users are given the ability to create and name their own cohort, then compare it to other cohorts
 if mode == "Advanced":
     CST = st.selectbox("Cohort Selection Type", ["Preset Cohorts", "Choose-Your-Own Cohorts"])
+#In basic mode, users do not select their own cohorts and cannot compare.
 else:
     COI = "cohort"
     CST = "Preset Cohorts"
     OD = "No Comparison"
 
+#In Basic Mode, the first condition will always be met.
+# In Advanced Mode, the user is given the option to use preset cohorts or create their own
 if CST == "Preset Cohorts":
         select_data = st.multiselect("Select Datasets", study_arms,
                                      [x for x in study_arms if "_PD" in x])
@@ -114,40 +119,52 @@ else:
         OD = st.selectbox("What will this cohort be compared to?",
                           ["No Comparison", "All Others", "All Other PD", "All Other HC"])
 
+#If no cohorts have been selected, the apps halt
+if not select_data:
+    st.warning("Please Select a Cohort")
+    st.stop()
+
 ###----------------------------------------------------------------------------------------------
 ###This section of code performs data cleaning for output in streamlit
 ###----------------------------------------------------------------------------------------------
 
+#Loads all possible columns from reference sheet
 cols = list(ref.Item)
 
 d = pd.DataFrame()
 
 #Only loads d_sets already processed
 d_set_target = pd.Series(i[0] for i in pd.Series(select_data).str.split("_")).unique()
+
 for j in d_set_target:
     d_sets2 = [d for d in d_sets if j in d]
 
-for dn in d_sets:
-    cohort_name = re.sub("[_processed.csvata\\\\]", "", dn)
+
+
+for dn in d_sets2:
+    cohort_name = re.sub("[_procesdvat.\\\\]", "", dn)
     cohort = pd.read_csv(dn) #usecols = ['participant_id',"visit_month","study_arm","Phenotype",'primary_diagnosis',"age_at_baseline","age_at_diagnosis"])
 
-    if cohort_name == "LS1":
+    if "LS1" in cohort_name:
         cohort.loc[:,"study_arm"] = [cohort_name + "_" + i for i in cohort.Phenotype]
     else:
         cohort.loc[:,"study_arm"] = [cohort_name + "_" + i for i in cohort.study_arm]
 
-    select_arms = [x.replace(re.sub("[processed.csvata\\\\]", "", dn), '') for x in select_data if re.sub("[_processed.csvata\\\\]", "", dn) in x]
+    select_arms = [x.replace(re.sub("[procesdvat.\\\\]", "", dn), '') for x in select_data if re.sub("[_procesdvat.\\\\]", "", dn) in x]
     dat = pd.read_csv(dn)
-    d1 = dat[dat.study_arm.isin(select_arms)]
 
+    if len(select_arms) > 1:
+        d1 = dat[dat.study_arm.isin(select_arms)]
+    else:
+        d1 = dat.copy()
 
     if (mode == "Advanced") & (CST == "Preset Cohorts"):
-        d1["cohort"] = re.sub("[_processed.csvata\\\\]", "", dn)
+        d1["cohort"] = cohort_name
     else:
         if COI == "":
             d1["cohort"] = "COI"
         else:
-            d1["cohort"] = COI
+            d1["cohort"] = cohort_name
 
         if OD == "All Others":
             d2 = dat[~dat.study_arm.isin(select_arms)]
@@ -164,16 +181,9 @@ for dn in d_sets:
 
     d = pd.concat([d,d1], ignore_index=True, axis=0)
 
-
-
-
 d1 = d1.loc[:, d1.columns.isin(cols)]
 
 t1 = d1.copy()
-
-if d.empty:
-    st.warning("Please Select a Cohort")
-    st.stop()
 
 cats = list(ref.loc[ref.ItemType == "string", "Item"])
 
@@ -186,24 +196,31 @@ if mode == "Advanced":
                                                           "Bar Graph","Baseline Histogram",
                                                           "Sankey Diagram", "Kaplan-Meier Survival"])
 
-d.loc[:, "HY"] = d.hoehn_and_yahr_stage
+
 d = d.rename({"mds_updrs_part_i_summary_score": "UPDRS1",
               "mds_updrs_part_ii_summary_score": "UPDRS2",
               "mds_updrs_part_iii_summary_score": "UPDRS3",
               "mds_updrs_part_iv_summary_score": "UPDRS4",
-              "moca_total_score": "MoCA"}, axis=1)
+              "moca_total_score": "MoCA",
+              "hoehn_and_yahr_stage":"HY"}, axis=1)
 
-# This code was used to subset PDBP patients based on those with genetic data
-PDBPs = pd.read_csv("PDBP_sample.csv")
-PDBPs = PDBPs[PDBPs.Original_genotypeID.notna()]
-d = d[d.participant_id.isin(PDBPs.Original_clinicalID)]
+# # This code was used to subset PDBP patients based on those with genetic data
+# PDBPs = pd.read_csv("PDBP_sample.csv")
+# PDBPs = PDBPs[PDBPs.Original_genotypeID.notna()]
+# d = d[d.participant_id.isin(PDBPs.Original_clinicalID)]
 
 # Essential Time Variables are Created
-d.loc[:, "BL_durdx"] = d.age_at_baseline - d.age_at_diagnosis
-d.loc[:, "daysB"] = (d.date_visit - d.date_baseline).fillna(d.visit_month * 30)
-d.loc[:, "daysDx"] = (d.daysB + d.BL_durdx * 365.25).round(2)
-d.loc[:, "yearsDx"] = (d.daysDx / 365.25).round(1)
-d.loc[:, "yearsB"] = (d.daysB / 365.25).round(1)
+if ("date_visit" in d.columns):
+    d.loc[:, "daysB"] = (d.date_visit - d.date_baseline).fillna(d.visit_month * 30)
+    d.loc[:, "yearsB"] = (d.daysB / 365.25).round(1)
+else:
+    d.loc[:,"daysB"] = d.visit_month * 30
+    d.loc[:, "yearsB"] = (d.daysB / 365.25).round(1)
+
+if ("age_at_baseline" in d.columns) & ("age_at_diagnosis" in d.columns):
+    d.loc[:, "BL_durdx"] = d.age_at_baseline - d.age_at_diagnosis
+    d.loc[:, "daysDx"] = (d.daysB + d.BL_durdx * 365.25).round(2)
+    d.loc[:, "yearsDx"] = (d.daysDx / 365.25).round(1)
 
 yearsDx = "Years Since Diagnosis"
 
@@ -212,32 +229,32 @@ if "HY" in d.columns:
     d.loc[:, "HY3"] = ["HY<3" if i < 3
                        else "HY>=3" for i in d.HY]
 
-d.loc[:, "age_bin"] = ["<50" if i < 50
-                       else ">50" for i in d.age_at_diagnosis]
+if "age_at_diagnosis" in d.columns:
+    d.loc[:, "age_bin"] = ["<50" if i < 50
+                                 else ">50" for i in d.age_at_diagnosis]
 
-for var in ["UPDRS1", "UPDRS2", "UPDRS3", "UPDRS4"]:
-    max = d.loc[:, var].max()
-    d.loc[:, (var + "_bin")] = [("<" + str(round((max * .2), 0))) if i < round((max * .2), 0)
-                                else ("<" + str(round((max * .4), 0))) if i < round((max * .4), 0)
-    else ("<" + str(round((max * .6), 0))) if i < round((max * .6), 0)
-    else ("<" + str(round((max * .8), 0))) if i < round((max * .8), 0)
-    else ("<" + str(round(max, 0))) if i <= round(max, 0)
-    else np.nan for i in d.loc[:, var]]
+flx_cols = ["code_upd2403_time_spent_in_the_off_state","code_upd2404_functional_impact_of_fluctuations",
+              "code_upd2405_complexity_of_motor_fluctuations"]
 
-d.loc[:, 'motor_fluctuations'] = ["Yes" if i > 0 else "No" for i in d.loc[:, ["code_upd2403_time_spent_in_the_off_state",
-                                           "code_upd2404_functional_impact_of_fluctuations",
-                                           "code_upd2405_complexity_of_motor_fluctuations"]].sum(axis=1, skipna=True)]
+if all([c in d.columns for c in flx_cols]):
+    d.loc[:, 'motor_fluctuations'] = ["Yes" if i > 0 else "No" for i in d.loc[:, flx_cols].sum(axis=1, skipna=True)]
 
+if "code_upd2314_body_bradykinesia" in d.columns:
+    d.loc[:, 'bradykinesia'] = ["Yes" if i > 0 else "No" for i in d.code_upd2314_body_bradykinesia]
 
-d.loc[:, 'bradykinesia'] = ["Yes" if i > 0 else "No" for i in d.code_upd2314_body_bradykinesia]
+rgd_cols = ["code_upd2303a_rigidity_neck", "code_upd2303b_rigidity_rt_upper_extremity",
+            "code_upd2303c_rigidity_left_upper_extremity", "code_upd2303d_rigidity_rt_lower_extremity",
+            "code_upd2303e_rigidity_left_lower_extremity"]
 
-d.loc[:, 'rigidity'] = ["Yes" if i > 0 else "No" for i in d.loc[:, ["code_upd2303a_rigidity_neck", "code_upd2303b_rigidity_rt_upper_extremity",
-                                 "code_upd2303c_rigidity_left_upper_extremity", "code_upd2303d_rigidity_rt_lower_extremity",
-                                 "code_upd2303e_rigidity_left_lower_extremity",]].sum(axis=1, skipna=True)]
+if all([c in d.columns for c in rgd_cols]):
+    d.loc[:, 'rigidity'] = ["Yes" if i > 0 else "No" for i in d.loc[:, rgd_cols].sum(axis=1, skipna=True)]
 
-d.loc[:, 'resting_tremor'] = ["Yes" if i > 0 else "No" for i in d.loc[:, ["code_upd2317a_rest_tremor_amplitude_right_upper_extremity","code_upd2317b_rest_tremor_amplitude_left_upper_extremity",
+trem_cols = ["code_upd2317a_rest_tremor_amplitude_right_upper_extremity","code_upd2317b_rest_tremor_amplitude_left_upper_extremity",
                                        "code_upd2317c_rest_tremor_amplitude_right_lower_extremity","code_upd2317d_rest_tremor_amplitude_left_lower_extremity",
-                                       "code_upd2317e_rest_tremor_amplitude_lip_or_jaw", "code_upd2318_consistency_of_rest_tremor"]].sum(axis=1, skipna=True)]
+                                       "code_upd2317e_rest_tremor_amplitude_lip_or_jaw", "code_upd2318_consistency_of_rest_tremor"]
+
+if all([c in d.columns for c in trem_cols]):
+    d.loc[:, 'resting_tremor'] = ["Yes" if i > 0 else "No" for i in d.loc[:, trem_cols].sum(axis=1, skipna=True)]
 
 cats = cats + ["bradykinesia","rigidity","resting_tremor","hx_dementia"]
 
@@ -283,6 +300,9 @@ if viz == "Tables":
         # columns to summarize
         columns = ['sex', 'Phenotype', 'race', 'education_level', 'primary_diagnosis', 'age_at_baseline',
                    'age_at_diagnosis', 'education_years', 'BL_durdx', 'UPDRS1', 'UPDRS2', 'UPDRS3', 'UPDRS4']
+
+        # columns containing categorical variables
+        columns = [i for i in columns if i in d.columns]
 
         # columns containing categorical variables
         categorical = [i for i in cats if i in columns]
@@ -363,6 +383,8 @@ if viz == "Tables":
 
     # display minimum and maximum for listed variables
     # min_max = ['Height']
+
+    st.write(d)
 
     if not columns:
         st.warning("No Variable Has Been Selected")
@@ -529,10 +551,10 @@ if viz == "Sankey Diagram":
 ###The following code is reponsible for producing the Kaplan Meier Survival plots
 ###----------------------------------------------------------------------------------------------'''
 if viz == "Kaplan-Meier Survival":
-
     var = st.sidebar.selectbox("Pick a variable", ["HY", "UPDRS1", "UPDRS2", "UPDRS3", "UPDRS4",
+                                                   "living_status",
                                                    "depress_test_score", 'gds15_total_score',
-                                                   'moca_total_score', 'MoCA',
+                                                   'moca_total_score', 'MoCA', 'ledd_daily',
                                                    'rbd_summary_score', 'ess_total_score', 'pdq39_mobility_score',
                                                    'pdq39_adl_score',
                                                    'pdq39_emotional_score', 'pdq39_stigma_score', 'pdq39_social_score',
@@ -543,6 +565,12 @@ if viz == "Kaplan-Meier Survival":
 
     if var in ['bradykinesia', 'resting_tremor', 'rigidity']:
         d.loc[:, "KM_var"] = d.loc[:, var].map({"Yes": 1, "No": 0, "Unknown": np.nan}).astype(int)
+    elif "liv" in var:
+         var = f'{var}_at_censoring'
+         d.loc[:, "KM_var"] = d.loc[:,var].mask(d.participant_id.duplicated(keep='last'),0)
+
+         st.write(d.loc[:,["participant_id",var,"KM_var"]])
+
     else:
         cutoff = st.sidebar.slider("Select a Cut-off Value", float(d.loc[:, var].min()), float(d.loc[:, var].median()),
                                    float(d.loc[:, var].max()), step=1.0)
@@ -553,8 +581,9 @@ if viz == "Kaplan-Meier Survival":
             d.loc[:, "KM_var"] = [1 if i >= cutoff
                                   else 0 for i in d.loc[:, var]]
 
-    asdm = d.loc[:, "KM_var"].unique()
     d = d.dropna(subset=["daysB", var])
+
+
 
     kmv = d.loc[:, ["participant_id", "KM_var"]].groupby("participant_id").agg(func="max").reset_index()
 
@@ -567,6 +596,7 @@ if viz == "Kaplan-Meier Survival":
 
     dn = d_0.append(d_1).loc[:, ["participant_id", "daysB", "KM_var"]]
 
+    st.write(dn)
     ## create a kmf object
     kmf = KaplanMeierFitter()
 
