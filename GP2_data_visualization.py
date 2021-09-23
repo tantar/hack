@@ -110,10 +110,10 @@ else:
 # In Advanced Mode, the user is given the option to use preset cohorts or create their own
 if CST == "Preset Cohorts":
         select_data = st.multiselect("Select Datasets", study_arms,
-                                     [x for x in study_arms if "_PD" in x])
+                                     ["PPMI_PD","BIOFIND_PD","LS1_PD"])
 else:
         select_data = st.multiselect("What study arms are in your cohort of interest (COI)?", study_arms,
-                                     [x for x in study_arms if "_PD" in x])
+                                     ["PPMI_PD","BIOFIND_PD","LS1_PD"])
 
         COI = st.text_input("Cohort Name")
         OD = st.selectbox("What will this cohort be compared to?",
@@ -139,9 +139,7 @@ d_set_target = pd.Series(i[0] for i in pd.Series(select_data).str.split("_")).un
 for j in d_set_target:
     d_sets2 = [d for d in d_sets if j in d]
 
-
-
-for dn in d_sets2:
+for dn in d_sets:
     cohort_name = re.sub("[_procesdvat.\\\\]", "", dn)
     cohort = pd.read_csv(dn) #usecols = ['participant_id',"visit_month","study_arm","Phenotype",'primary_diagnosis',"age_at_baseline","age_at_diagnosis"])
 
@@ -150,7 +148,8 @@ for dn in d_sets2:
     else:
         cohort.loc[:,"study_arm"] = [cohort_name + "_" + i for i in cohort.study_arm]
 
-    select_arms = [x.replace(re.sub("[procesdvat.\\\\]", "", dn), '') for x in select_data if re.sub("[_procesdvat.\\\\]", "", dn) in x]
+
+    select_arms = [x.replace(re.sub("[procesdvat.\\\\]", "", dn), '') for x in select_data if re.sub("[procesdvat.\\\\]", "", dn) in x]
     dat = pd.read_csv(dn)
 
     if len(select_arms) > 1:
@@ -223,38 +222,38 @@ if ("age_at_baseline" in d.columns) & ("age_at_diagnosis" in d.columns):
     d.loc[:, "yearsDx"] = (d.daysDx / 365.25).round(1)
 
 yearsDx = "Years Since Diagnosis"
-
-# Creating new variables
-if "HY" in d.columns:
-    d.loc[:, "HY3"] = ["HY<3" if i < 3
-                       else "HY>=3" for i in d.HY]
-
-if "age_at_diagnosis" in d.columns:
-    d.loc[:, "age_bin"] = ["<50" if i < 50
-                                 else ">50" for i in d.age_at_diagnosis]
-
-flx_cols = ["code_upd2403_time_spent_in_the_off_state","code_upd2404_functional_impact_of_fluctuations",
-              "code_upd2405_complexity_of_motor_fluctuations"]
-
-if all([c in d.columns for c in flx_cols]):
-    d.loc[:, 'motor_fluctuations'] = ["Yes" if i > 0 else "No" for i in d.loc[:, flx_cols].sum(axis=1, skipna=True)]
-
-if "code_upd2314_body_bradykinesia" in d.columns:
-    d.loc[:, 'bradykinesia'] = ["Yes" if i > 0 else "No" for i in d.code_upd2314_body_bradykinesia]
-
-rgd_cols = ["code_upd2303a_rigidity_neck", "code_upd2303b_rigidity_rt_upper_extremity",
-            "code_upd2303c_rigidity_left_upper_extremity", "code_upd2303d_rigidity_rt_lower_extremity",
-            "code_upd2303e_rigidity_left_lower_extremity"]
-
-if all([c in d.columns for c in rgd_cols]):
-    d.loc[:, 'rigidity'] = ["Yes" if i > 0 else "No" for i in d.loc[:, rgd_cols].sum(axis=1, skipna=True)]
-
-trem_cols = ["code_upd2317a_rest_tremor_amplitude_right_upper_extremity","code_upd2317b_rest_tremor_amplitude_left_upper_extremity",
-                                       "code_upd2317c_rest_tremor_amplitude_right_lower_extremity","code_upd2317d_rest_tremor_amplitude_left_lower_extremity",
-                                       "code_upd2317e_rest_tremor_amplitude_lip_or_jaw", "code_upd2318_consistency_of_rest_tremor"]
-
-if all([c in d.columns for c in trem_cols]):
-    d.loc[:, 'resting_tremor'] = ["Yes" if i > 0 else "No" for i in d.loc[:, trem_cols].sum(axis=1, skipna=True)]
+#
+# # Creating new variables
+# if "HY" in d.columns:
+#     d.loc[:, "HY3"] = ["HY<3" if i < 3
+#                        else "HY>=3" for i in d.HY]
+#
+# if "age_at_diagnosis" in d.columns:
+#     d.loc[:, "age_bin"] = ["<50" if i < 50
+#                                  else ">50" for i in d.age_at_diagnosis]
+#
+# flx_cols = ["code_upd2403_time_spent_in_the_off_state","code_upd2404_functional_impact_of_fluctuations",
+#               "code_upd2405_complexity_of_motor_fluctuations"]
+#
+# if all([c in d.columns for c in flx_cols]):
+#     d.loc[:, 'motor_fluctuations'] = ["Yes" if i > 0 else "No" for i in d.loc[:, flx_cols].sum(axis=1, skipna=True)]
+#
+# if "code_upd2314_body_bradykinesia" in d.columns:
+#     d.loc[:, 'bradykinesia'] = ["Yes" if i > 0 else "No" for i in d.code_upd2314_body_bradykinesia]
+#
+# rgd_cols = ["code_upd2303a_rigidity_neck", "code_upd2303b_rigidity_rt_upper_extremity",
+#             "code_upd2303c_rigidity_left_upper_extremity", "code_upd2303d_rigidity_rt_lower_extremity",
+#             "code_upd2303e_rigidity_left_lower_extremity"]
+#
+# if all([c in d.columns for c in rgd_cols]):
+#     d.loc[:, 'rigidity'] = ["Yes" if i > 0 else "No" for i in d.loc[:, rgd_cols].sum(axis=1, skipna=True)]
+#
+# trem_cols = ["code_upd2317a_rest_tremor_amplitude_right_upper_extremity","code_upd2317b_rest_tremor_amplitude_left_upper_extremity",
+#                                        "code_upd2317c_rest_tremor_amplitude_right_lower_extremity","code_upd2317d_rest_tremor_amplitude_left_lower_extremity",
+#                                        "code_upd2317e_rest_tremor_amplitude_lip_or_jaw", "code_upd2318_consistency_of_rest_tremor"]
+#
+# if all([c in d.columns for c in trem_cols]):
+#     d.loc[:, 'resting_tremor'] = ["Yes" if i > 0 else "No" for i in d.loc[:, trem_cols].sum(axis=1, skipna=True)]
 
 cats = cats + ["bradykinesia","rigidity","resting_tremor","hx_dementia"]
 
@@ -383,8 +382,6 @@ if viz == "Tables":
 
     # display minimum and maximum for listed variables
     # min_max = ['Height']
-
-    st.write(d)
 
     if not columns:
         st.warning("No Variable Has Been Selected")
