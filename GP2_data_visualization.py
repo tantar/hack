@@ -136,10 +136,13 @@ d = pd.DataFrame()
 #Only loads d_sets already processed
 d_set_target = pd.Series(i[0] for i in pd.Series(select_data).str.split("_")).unique()
 
+d_sets2 = list()
 for j in d_set_target:
-    d_sets2 = [d for d in d_sets if j in d]
+    dst = [d for d in d_sets if j in d]
+    d_sets2 = d_sets2 + dst
 
-for dn in d_sets:
+
+for dn in d_sets2:
     cohort_name = re.sub("[_procesdvat.\\\\]", "", dn)
     cohort = pd.read_csv(dn) #usecols = ['participant_id',"visit_month","study_arm","Phenotype",'primary_diagnosis',"age_at_baseline","age_at_diagnosis"])
 
@@ -150,9 +153,10 @@ for dn in d_sets:
 
 
     select_arms = [x.replace(re.sub("[procesdvat.\\\\]", "", dn), '') for x in select_data if re.sub("[procesdvat.\\\\]", "", dn) in x]
+
     dat = pd.read_csv(dn)
 
-    if len(select_arms) > 1:
+    if cohort_name not in ["LS1","PROBAND"]:
         d1 = dat[dat.study_arm.isin(select_arms)]
     else:
         d1 = dat.copy()
@@ -254,7 +258,7 @@ yearsDx = "Years Since Diagnosis"
 #
 # if all([c in d.columns for c in trem_cols]):
 #     d.loc[:, 'resting_tremor'] = ["Yes" if i > 0 else "No" for i in d.loc[:, trem_cols].sum(axis=1, skipna=True)]
-
+#
 cats = cats + ["bradykinesia","rigidity","resting_tremor","hx_dementia"]
 
 nnml = d.columns[~d.columns.isin(cats)]
