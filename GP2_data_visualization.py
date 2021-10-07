@@ -314,7 +314,7 @@ if viz == "Scatter Plot":
         fig = px.scatter(d, x=xax, y=yax, opacity=0.5, trendline=tl)
 
     st.write(fig)
-st.write(d.head(50))
+
 ###----------------------------------------------------------------------------------------------###
 ###The following code is responsible for producing the demographic summarization table
 ###----------------------------------------------------------------------------------------------'''
