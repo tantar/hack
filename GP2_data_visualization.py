@@ -133,7 +133,7 @@ def LoadData():
                 d2.loc["cohort"] = OD
                 d1 = d1.append(d2)
 
-        d = pd.concat([d,cohort], ignore_index=True, axis=0).astype(str)
+        d = pd.concat([d,cohort], ignore_index=True, axis=0)
     return d
 
 
@@ -157,6 +157,7 @@ else:
 cols = list(ref.Item)
 
 d = LoadData()
+d = d.astype(str)
 
 #In Basic Mode, the first condition will always be met.
 # In Advanced Mode, the user is given the option to use preset cohorts or create their own
