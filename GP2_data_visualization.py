@@ -33,7 +33,7 @@ def LoadReqs():
     # Creates list of file names, datasets, and dataset names
     files = glob.glob(f'*.csv')
     d_sets = glob.glob(f'data/*.csv')
-    d_names = [re.sub("[procesdvat.\\/]", "", i) for i in d_sets]
+    d_names = [re.sub("[procesdvat.\\\\/]", "", i) for i in d_sets]
 
     # The Reference sheet contains info on all possible columns in GP2, facilitating easier categorization for any cohort
     ref = pd.read_csv("Reference.csv")
@@ -103,7 +103,7 @@ def LoadReqs():
 def LoadData():
     d = pd.DataFrame()
     for dn in d_sets:
-        cohort_name = re.sub("[_procesdvat.\\/]", "", dn)
+        cohort_name = re.sub("[_procesdvat.\\\\/]", "", dn)
         cohort = pd.read_csv(dn,low_memory=False) #usecols = ['participant_id',"visit_month","study_arm","Phenotype",'primary_diagnosis',"age_at_baseline","age_at_diagnosis"])
 
         if "LS1" in cohort_name:
@@ -139,7 +139,8 @@ def LoadData():
 
 # Set up the headers for the app
 st.title("GP2 Data Visualization Tool")
-mode = "Basic"#st.sidebar.radio("Mode",["Basic","Advanced"])
+#mode = st.sidebar.radio("Mode",["Basic","Advanced"])
+mode = "Basic"
 st.sidebar.title("Options")
 
 study_arms, info, ref, d_sets = LoadReqs()
@@ -157,6 +158,7 @@ else:
 cols = list(ref.Item)
 
 d = LoadData()
+
 
 #In Basic Mode, the first condition will always be met.
 # In Advanced Mode, the user is given the option to use preset cohorts or create their own
@@ -176,15 +178,13 @@ else:
                           ["No Comparison", "All Others", "All Other PD", "All Other HC"])
 
 
-# select_arms = [x.replace(re.sub("[procesdvat.\\/]", "", dn), '') for x in select_data if
-#                re.sub("[procesdvat.\\/]", "", dn) in x]
+# select_arms = [x.replace(re.sub("[procesdvat.\\\\]", "", dn), '') for x in select_data if
+#                re.sub("[procesdvat.\\\\]", "", dn) in x]
 
 # if cohort_name not in ["LS1", "PROBAND"]:
 #     d1 = dat[dat.study_arm.isin(select_arms)]
 # else:
 #     d1 = dat.copy()
-
-
 
 d = d[d.study_arm.isin(select_data)]
 
@@ -216,7 +216,7 @@ cats = list(ref.loc[ref.ItemType == "string", "Item"])
 
 if mode == "Basic":
     # Creating checkboxes and slide bars for dataset, diagram choice, and variable of choice
-    viz = st.sidebar.selectbox("Choose a Visualization", ["Tables", "Scatter Plot","Bar Graph","Baseline Histogram", "Kaplan-Meier Survival","Cohort Compare"])
+    viz = st.sidebar.selectbox("Choose a Visualization", ["Tables", "Scatter Plot","Bar Graph","Baseline Histogram", "Kaplan-Meier Survival"])#,"Cohort Compare"
 if mode == "Advanced":
     # Creating checkboxes and slide bars for dataset, diagram choice, and variable of choice
     viz = st.sidebar.selectbox("Choose a Visualization", ["Tables", "Scatter Plot","Line Plot",
@@ -320,7 +320,7 @@ if viz == "Scatter Plot":
 ###----------------------------------------------------------------------------------------------'''
 if viz == "Tables":
 
-    foc = st.sidebar.selectbox("Select a Focus", ["Overall", "Demographic", "Motor", "Non-Motor", "Choose-Your-Own"])
+    foc = st.sidebar.selectbox("Select a Focus", ["Overall", "Demographic", "Non-Motor", "Choose-Your-Own"])
     gby = st.sidebar.selectbox("Stratifying Variable", ["None", "study_arm", "cohort", 'Phenotype'])
 
     if foc == "Overall":
@@ -410,8 +410,7 @@ if viz == "Tables":
 
     # display minimum and maximum for listed variables
     # min_max = ['Height']
-    
-    
+
     if not columns:
         st.warning("No Variable Has Been Selected")
     elif gby == "None":
@@ -462,7 +461,7 @@ if viz == "Baseline Histogram":
 ###The following code is reponsible for producing the new stacked bar graphs
 ###----------------------------------------------------------------------------------------------'''
 if viz == "Bar Graph":
-    var = st.sidebar.selectbox("Pick a y-axis", cats)
+    var = st.sidebar.selectbox("Pick a y-axis", cats[3:])
 
     bl = st.sidebar.selectbox("Pick an x-axis", ["yearsDx", "yearsB", "visit_month",
                                                  "HY3", "UPDRS1", "UPDRS2", "UPDRS3",
