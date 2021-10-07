@@ -24,78 +24,120 @@ def MedQ13(series) :
     SD = series.quantile([.25,.75])
     out = str(median) + "[" + str(series.quantile(.25).round(1)) + "," + str(series.quantile(.75).round(1))  + "]"
     return out
+@st.cache
+def LoadReqs():
+    # Creates list of file names, datasets, and dataset names
+    files = glob.glob(f'*.csv')
+    d_sets = glob.glob(f'data/*.csv')
+    d_names = [re.sub("[procesdvat.\\\\]", "", i) for i in d_sets]
+
+    # The Reference sheet contains info on all possible columns in GP2, facilitating easier categorization for any cohort
+    ref = pd.read_csv("Reference.csv")
+
+    # If study_arms and info_table need to be produced from scratch, the data files are initialized here
+    study_arms = list()
+    info = pd.DataFrame()
+
+    if any(i not in files for i in ["study_arms.csv", "info_table.csv"]):
+        st.warning("Missing Files Detected, Rewriting Study Arms and Info Table")
+        for dn in d_sets:
+            cohort_name = re.sub("[_procesdvat.\\\\]", "", dn)
+            cohort = pd.read_csv(dn)
+
+            # LS1 is unique in that it's study_arm refers to an experimental arm rather than phenotypic one
+            if "LS1" in cohort_name:
+                cohort.loc[:, "study_arm"] = [cohort_name + "_" + i for i in cohort.Phenotype]
+            else:
+                cohort.loc[:, "study_arm"] = [cohort_name + "_" + i for i in cohort.study_arm]
+
+            study_arms = study_arms + list(cohort.study_arm.unique())
+
+            study_arms.sort()
+            tinfo2 = pd.DataFrame()
+
+            for j in cohort.study_arm.unique():
+                tinfo = pd.DataFrame(data={'Study Arm': j,
+                                           'N': len(cohort.loc[(cohort.study_arm == j), "participant_id"].unique()),
+                                           'N_OBS': cohort.loc[(cohort.study_arm == j), "participant_id"].count(),
+                                           'Mean BL Age': MeanSD(
+                                               cohort.loc[(cohort.study_arm == j), "age_at_baseline"]),
+                                           'Median BL DurDx': MedQ13(pd.Series([i - j for i, j in
+                                                                                zip(cohort.age_at_baseline,
+                                                                                    cohort.age_at_diagnosis)])),
+                                           'FU Time': (cohort.drop_duplicates(subset="participant_id", keep="last").loc[
+                                                           (cohort.study_arm == j), "visit_month"].mean() / 12),
+                                           'Visit Date': ["X" if "date_visit" in cohort.columns else " "],
+                                           'Family History': ["X" if "family_hx_1st" in cohort.columns else " "],
+                                           'Vital': ["X" if all(elem in cohort.columns for elem in list(
+                                               ref.loc[ref.Modality == "Vital", "Item"])) else " "],
+                                           'UPDRS': [
+                                               "X" if "mds_updrs_part_i_summary_score" in cohort.columns else " "],
+                                           'MoCA': ["X" if "moca_total_score" in cohort.columns else " "],
+                                           'SCOPA-COG': ["X" if "scopa_cog_total_score" in cohort.columns else " "],
+                                           'RBDSQ': ["X" if "rbd_summary_score" in cohort.columns else " "],
+                                           'ESS': ["X" if "ess_total_score" in cohort.columns else " "],
+                                           'PDQ39': ["X" if "pdq39_discomfort_score" in cohort.columns else " "],
+                                           'Depression': ["X" if any(i in cohort.columns for i in ["gds15_total_score",
+                                                                                                   "depress_test_score"]) else " "],
+                                           'Olfactory': ["X" if "smell_test_results" in cohort.columns else " "],
+                                           },
+
+                                     index=[0])
+                tinfo2 = tinfo2.append(tinfo)
+
+            info = info.append(tinfo2)
+
+        pd.Series(study_arms).to_csv("study_arms.csv", index=False)
+        info.to_csv("info_table.csv", index=False)
+    else:
+        study_arms = list(pd.read_csv("study_arms.csv").iloc[:, 1])
+        info = pd.read_csv("info_table.csv")
+
+    return study_arms, info, ref, d_sets
+@st.cache
+def LoadData():
+    d = pd.DataFrame()
+    for dn in d_sets:
+        cohort_name = re.sub("[_procesdvat.\\\\]", "", dn)
+        cohort = pd.read_csv(dn) #usecols = ['participant_id',"visit_month","study_arm","Phenotype",'primary_diagnosis',"age_at_baseline","age_at_diagnosis"])
+
+        if "LS1" in cohort_name:
+            cohort.loc[:,"study_arm"] = [cohort_name + "_" + i for i in cohort.Phenotype]
+        else:
+            cohort.loc[:,"study_arm"] = [cohort_name + "_" + i for i in cohort.study_arm]
+
+
+        if (mode == "Advanced") & (CST == "Preset Cohorts"):
+            cohort["cohort"] = cohort_name
+        else:
+            if COI == "":
+                cohort["cohort"] = "COI"
+            else:
+                cohort["cohort"] = cohort_name
+
+            if OD == "All Others":
+                d2 = dat[~dat.study_arm.isin(select_arms)]
+                d2["cohort"] = OD
+                d1 = d1.append(d2)
+            elif OD == "All Other PD":
+                d2 = dat[(~dat.study_arm.isin(select_arms)) & (dat.study_arm.str.contains("_PD"))]
+                d2["cohort"] = OD
+                d1 = d1.append(d2)
+            elif OD == "All Other HC":
+                d2 = dat[(~dat.study_arm.isin(select_arms)) & (dat.study_arm.str.contains("_HC"))]
+                d2["cohort"] = OD
+                d1 = d1.append(d2)
+
+        d = pd.concat([d,cohort], ignore_index=True, axis=0)
+    return d
+
 
 # Set up the headers for the app
 st.title("GP2 Data Visualization Tool")
 mode = st.sidebar.radio("Mode",["Basic","Advanced"])
 st.sidebar.title("Options")
 
-#Creates list of file names, datasets, and dataset names
-files = glob.glob(f'*.csv')
-d_sets = glob.glob(f'data/*.csv')
-d_names = [re.sub("[procesdvat.\\\\]", "", i) for i in d_sets]
-
-#The Reference sheet contains info on all possible columns in GP2, facilitating easier categorization for any cohort
-ref = pd.read_csv("Reference.csv")
-
-#If study_arms and info_table need to be produced from scratch, the data files are initialized here
-study_arms = list()
-info = pd.DataFrame()
-
-if any(i not in files for i in ["study_arms.csv","info_table.csv"]):
-    st.warning("Missing Files Detected, Rewriting Study Arms and Info Table")
-    for dn in d_sets:
-        cohort_name = re.sub("[_procesdvat.\\\\]", "", dn)
-        cohort = pd.read_csv(dn)
-
-        # LS1 is unique in that it's study_arm refers to an experimental arm rather than phenotypic one
-        if "LS1" in cohort_name:
-                cohort.loc[:, "study_arm"] = [cohort_name + "_" + i for i in cohort.Phenotype]
-        else:
-                cohort.loc[:, "study_arm"] = [cohort_name + "_" + i for i in cohort.study_arm]
-
-        study_arms = study_arms + list(cohort.study_arm.unique())
-
-        study_arms.sort()
-        tinfo2 = pd.DataFrame()
-
-        for j in cohort.study_arm.unique():
-            tinfo = pd.DataFrame(data={'Study Arm': j,
-                                       'N': len(cohort.loc[(cohort.study_arm == j), "participant_id"].unique()),
-                                       'N_OBS': cohort.loc[(cohort.study_arm == j), "participant_id"].count(),
-                                       'Mean BL Age': MeanSD(
-                                           cohort.loc[(cohort.study_arm == j), "age_at_baseline"]),
-                                       'Median BL DurDx': MedQ13(pd.Series([i - j for i, j in
-                                                                            zip(cohort.age_at_baseline,
-                                                                                cohort.age_at_diagnosis)])),
-                                       'FU Time': (cohort.drop_duplicates(subset="participant_id", keep="last").loc[
-                                                       (cohort.study_arm == j), "visit_month"].mean() / 12),
-                                       'Visit Date': ["X" if "date_visit" in cohort.columns else " "],
-                                       'Family History': ["X" if "family_hx_1st" in cohort.columns else " "],
-                                       'Vital': ["X" if all(elem in cohort.columns for elem in list(
-                                           ref.loc[ref.Modality == "Vital", "Item"])) else " "],
-                                       'UPDRS': [
-                                           "X" if "mds_updrs_part_i_summary_score" in cohort.columns else " "],
-                                       'MoCA': ["X" if "moca_total_score" in cohort.columns else " "],
-                                       'SCOPA-COG': ["X" if "scopa_cog_total_score" in cohort.columns else " "],
-                                       'RBDSQ': ["X" if "rbd_summary_score" in cohort.columns else " "],
-                                       'ESS': ["X" if "ess_total_score" in cohort.columns else " "],
-                                       'PDQ39': ["X" if "pdq39_discomfort_score" in cohort.columns else " "],
-                                       'Depression': ["X" if any(i in cohort.columns for i in ["gds15_total_score",
-                                                                                               "depress_test_score"]) else " "],
-                                       'Olfactory': ["X" if "smell_test_results" in cohort.columns else " "],
-                                       },
-
-                                 index=[0])
-            tinfo2 = tinfo2.append(tinfo)
-
-        info = info.append(tinfo2)
-
-    pd.Series(study_arms).to_csv("study_arms.csv",index=False)
-    info.to_csv("info_table.csv",index=False)
-else:
-    study_arms = list(pd.read_csv("study_arms.csv").iloc[:,1])
-    info = pd.read_csv("info_table.csv")
+study_arms, info, ref, d_sets = LoadReqs()
 
 #In Advanced mode, users are given the ability to create and name their own cohort, then compare it to other cohorts
 if mode == "Advanced":
@@ -106,11 +148,20 @@ else:
     CST = "Preset Cohorts"
     OD = "No Comparison"
 
+#Loads all possible columns from reference sheet
+cols = list(ref.Item)
+
+d = LoadData()
+
 #In Basic Mode, the first condition will always be met.
 # In Advanced Mode, the user is given the option to use preset cohorts or create their own
 if CST == "Preset Cohorts":
-        select_data = st.multiselect("Select Datasets", study_arms,
-                                     ["PPMI_PD","BIOFIND_PD","LS1_PD"])
+        if st.checkbox("All PD"):
+            select_data = st.multiselect("Select Datasets", study_arms,
+                                         [x for x in study_arms if "_PD" in x])
+        else:
+            select_data = st.multiselect("Select Datasets", study_arms,
+                                         ["PPMI_PD","BIOFIND_PD","LS1_PD"])
 else:
         select_data = st.multiselect("What study arms are in your cohort of interest (COI)?", study_arms,
                                      ["PPMI_PD","BIOFIND_PD","LS1_PD"])
@@ -118,6 +169,17 @@ else:
         COI = st.text_input("Cohort Name")
         OD = st.selectbox("What will this cohort be compared to?",
                           ["No Comparison", "All Others", "All Other PD", "All Other HC"])
+
+
+# select_arms = [x.replace(re.sub("[procesdvat.\\\\]", "", dn), '') for x in select_data if
+#                re.sub("[procesdvat.\\\\]", "", dn) in x]
+
+# if cohort_name not in ["LS1", "PROBAND"]:
+#     d1 = dat[dat.study_arm.isin(select_arms)]
+# else:
+#     d1 = dat.copy()
+
+d = d[d.study_arm.isin(select_data)]
 
 #If no cohorts have been selected, the apps halt
 if not select_data:
@@ -128,72 +190,26 @@ if not select_data:
 ###This section of code performs data cleaning for output in streamlit
 ###----------------------------------------------------------------------------------------------
 
-#Loads all possible columns from reference sheet
-cols = list(ref.Item)
-
-d = pd.DataFrame()
-
-#Only loads d_sets already processed
-d_set_target = pd.Series(i[0] for i in pd.Series(select_data).str.split("_")).unique()
-
-d_sets2 = list()
-for j in d_set_target:
-    dst = [d for d in d_sets if j in d]
-    d_sets2 = d_sets2 + dst
-    
-for dn in d_sets2:
-    cohort_name = re.sub("[_procesdvat.\\\\]", "", dn)
-    cohort = pd.read_csv(dn) #usecols = ['participant_id',"visit_month","study_arm","Phenotype",'primary_diagnosis',"age_at_baseline","age_at_diagnosis"])
-
-    if "LS1" in cohort_name:
-        cohort.loc[:,"study_arm"] = [cohort_name + "_" + i for i in cohort.Phenotype]
-    else:
-        cohort.loc[:,"study_arm"] = [cohort_name + "_" + i for i in cohort.study_arm]
 
 
-    select_arms = [x.replace(re.sub("[procesdvat.\\\\]", "", dn), '') for x in select_data if re.sub("[procesdvat.\\\\]", "", dn) in x]
-
-    dat = pd.read_csv(dn)
-    
-    st.write(dat)
-
-    if cohort_name not in ["LS1","PROBAND"]:
-        d1 = dat[dat.study_arm.isin(select_arms)]
-    else:
-        d1 = dat.copy()
-
-    if (mode == "Advanced") & (CST == "Preset Cohorts"):
-        d1["cohort"] = cohort_name
-    else:
-        if COI == "":
-            d1["cohort"] = "COI"
-        else:
-            d1["cohort"] = cohort_name
-
-        if OD == "All Others":
-            d2 = dat[~dat.study_arm.isin(select_arms)]
-            d2["cohort"] = OD
-            d1 = d1.append(d2)
-        elif OD == "All Other PD":
-            d2 = dat[(~dat.study_arm.isin(select_arms)) & (dat.study_arm.str.contains("_PD"))]
-            d2["cohort"] = OD
-            d1 = d1.append(d2)
-        elif OD == "All Other HC":
-            d2 = dat[(~dat.study_arm.isin(select_arms)) & (dat.study_arm.str.contains("_HC"))]
-            d2["cohort"] = OD
-            d1 = d1.append(d2)
-
-    d = pd.concat([d,d1], ignore_index=True, axis=0)
-
-d1 = d1.loc[:, d1.columns.isin(cols)]
-
-t1 = d1.copy()
+# #Only loads d_sets already processed
+# d_set_target = pd.Series(i[0] for i in pd.Series(select_data).str.split("_")).unique()
+#
+# d_sets2 = list()
+# for j in d_set_target:
+#     dst = [d for d in d_sets if j in d]
+#     d_sets2 = d_sets2 + dst
+#
+#
+# d1 = d1.loc[:, d1.columns.isin(cols)]
+#
+# t1 = d1.copy()
 
 cats = list(ref.loc[ref.ItemType == "string", "Item"])
 
 if mode == "Basic":
     # Creating checkboxes and slide bars for dataset, diagram choice, and variable of choice
-    viz = st.sidebar.selectbox("Choose a Visualization", ["Tables", "Scatter Plot","Bar Graph","Baseline Histogram", "Kaplan-Meier Survival"])
+    viz = st.sidebar.selectbox("Choose a Visualization", ["Tables", "Scatter Plot","Bar Graph","Baseline Histogram", "Kaplan-Meier Survival","Cohort Compare"])
 if mode == "Advanced":
     # Creating checkboxes and slide bars for dataset, diagram choice, and variable of choice
     viz = st.sidebar.selectbox("Choose a Visualization", ["Tables", "Scatter Plot","Line Plot",
@@ -440,9 +456,6 @@ if viz == "Baseline Histogram":
 if viz == "Bar Graph":
     var = st.sidebar.selectbox("Pick a y-axis", cats)
 
-    if var in ["UPDRS1", "UPDRS2", "UPDRS3", "UPDRS4"]:
-        var = var + "_bin"
-
     bl = st.sidebar.selectbox("Pick an x-axis", ["yearsDx", "yearsB", "visit_month",
                                                  "HY3", "UPDRS1", "UPDRS2", "UPDRS3",
                                                  "UPDRS4"])
@@ -565,13 +578,16 @@ if viz == "Kaplan-Meier Survival":
                                                    "code_upd2403_time_spent_in_the_off_state",
                                                    'bradykinesia', 'resting_tremor', 'rigidity'])
 
+    cohort_w_var = d.loc[d.loc[:,var].notna(),"study_arm"].unique()
+    if len(d.study_arm.unique()) != len(cohort_w_var):
+        missing_cohorts = [c for c in d.study_arm.unique() if c not in cohort_w_var]
+        st.warning(f"{missing_cohorts}: Missing Variable of Interest")
+
     if var in ['bradykinesia', 'resting_tremor', 'rigidity']:
         d.loc[:, "KM_var"] = d.loc[:, var].map({"Yes": 1, "No": 0, "Unknown": np.nan}).astype(int)
     elif "liv" in var:
          var = f'{var}_at_censoring'
          d.loc[:, "KM_var"] = d.loc[:,var].mask(d.participant_id.duplicated(keep='last'),0)
-
-         st.write(d.loc[:,["participant_id",var,"KM_var"]])
 
     else:
         cutoff = st.sidebar.slider("Select a Cut-off Value", float(d.loc[:, var].min()), float(d.loc[:, var].median()),
@@ -598,14 +614,13 @@ if viz == "Kaplan-Meier Survival":
 
     dn = d_0.append(d_1).loc[:, ["participant_id", "daysB", "KM_var"]]
 
-    st.write(dn)
     ## create a kmf object
     kmf = KaplanMeierFitter()
 
 
     if st.sidebar.checkbox("Stratify Curve?"):
         stvar = st.sidebar.selectbox("Pick a variable",
-                                     ['Phenotype', "study_arm", 'sex', 'cohort', 'age_bin', 'ethnicity'])
+                                     ['cohort', 'Phenotype', "study_arm", 'sex', 'age_bin', 'ethnicity'])
 
         dn = dn.merge(d.loc[:, ["participant_id", stvar]].drop_duplicates(subset="participant_id"), how='left')
         items = dn.loc[:, stvar].unique()
@@ -635,8 +650,21 @@ if viz == "Kaplan-Meier Survival":
     st.pyplot()
 
 ###----------------------------------------------------------------------------------------------###
+###The following code is reponsible for producing the cohort compare function
+###----------------------------------------------------------------------------------------------'''
+
+if viz == "Cohort Compare":
+    type = st.selectbox("Select Type of Subset to Compare", ["study_arm", "cohort"])
+    col1, col2 = st.beta_columns(2)
+
+    with col1:
+        co1 = st.selectbox("Select Cohort 1",d.loc[:,type].unique())
+    with col2:
+        co2 = st.selectbox("Select Cohort 2",d.loc[:,type].unique())
+###----------------------------------------------------------------------------------------------###
 ###The following code is reponsible for producing the line plot
 ###----------------------------------------------------------------------------------------------'''
+
 alt.data_transformers.enable('default', max_rows=None)
 
 if viz == "Line Plot":
