@@ -156,8 +156,6 @@ cols = list(ref.Item)
 
 d = LoadData()
 
-st.write(d)
-
 #In Basic Mode, the first condition will always be met.
 # In Advanced Mode, the user is given the option to use preset cohorts or create their own
 if CST == "Preset Cohorts":
