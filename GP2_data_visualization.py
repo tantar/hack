@@ -158,6 +158,8 @@ cols = list(ref.Item)
 
 d = LoadData()
 
+st.write(d.head(50))
+
 #In Basic Mode, the first condition will always be met.
 # In Advanced Mode, the user is given the option to use preset cohorts or create their own
 if CST == "Preset Cohorts":
@@ -184,7 +186,12 @@ else:
 # else:
 #     d1 = dat.copy()
 
+st.write(select_data)
+st.write(d.head(50))
+
 d = d[d.study_arm.isin(select_data)]
+
+st.write(d.head(50))
 
 #If no cohorts have been selected, the apps halt
 if not select_data:
