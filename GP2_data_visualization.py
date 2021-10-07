@@ -45,7 +45,7 @@ def LoadReqs():
     if any(i not in files for i in ["study_arms.csv", "info_table.csv"]):
         st.warning("Missing Files Detected, Rewriting Study Arms and Info Table")
         for dn in d_sets:
-            cohort_name = re.sub("[_procesdvat.\\\\]", "", dn)
+            cohort_name = re.sub("[_procesdvat.\\]", "", dn)
             cohort = pd.read_csv(dn)
             cohort = cohort.astype(str)
 
@@ -104,7 +104,6 @@ def LoadData():
     d = pd.DataFrame()
     for dn in d_sets:
         cohort_name = re.sub("[_procesdvat.\\\\]", "", dn)
-        cohort_name = re.sub("\", "", dn)
         st.write(cohort_name)
         cohort = pd.read_csv(dn,low_memory=False) #usecols = ['participant_id',"visit_month","study_arm","Phenotype",'primary_diagnosis',"age_at_baseline","age_at_diagnosis"])
 
