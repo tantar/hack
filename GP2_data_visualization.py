@@ -104,6 +104,8 @@ def LoadData():
     d = pd.DataFrame()
     for dn in d_sets:
         cohort_name = re.sub("[_procesdvat.\\\\]", "", dn)
+        cohort_name = re.sub("\", "", dn)
+        st.write(cohort_name)
         cohort = pd.read_csv(dn,low_memory=False) #usecols = ['participant_id',"visit_month","study_arm","Phenotype",'primary_diagnosis',"age_at_baseline","age_at_diagnosis"])
 
         if "LS1" in cohort_name:
@@ -139,7 +141,7 @@ def LoadData():
 
 # Set up the headers for the app
 st.title("GP2 Data Visualization Tool")
-mode = st.sidebar.radio("Mode",["Basic","Advanced"])
+mode = "Basic"#st.sidebar.radio("Mode",["Basic","Advanced"])
 st.sidebar.title("Options")
 
 study_arms, info, ref, d_sets = LoadReqs()
@@ -157,8 +159,6 @@ else:
 cols = list(ref.Item)
 
 d = LoadData()
-
-st.write(d.head(50))
 
 #In Basic Mode, the first condition will always be met.
 # In Advanced Mode, the user is given the option to use preset cohorts or create their own
