@@ -27,6 +27,7 @@ def MedQ13(series) :
     SD = series.quantile([.25,.75])
     out = str(median) + "[" + str(series.quantile(.25).round(1)) + "," + str(series.quantile(.75).round(1))  + "]"
     return out
+
 @st.cache
 def LoadReqs():
     # Creates list of file names, datasets, and dataset names
@@ -97,6 +98,7 @@ def LoadReqs():
         info = pd.read_csv("info_table.csv")
 
     return study_arms, info, ref, d_sets
+
 @st.cache
 def LoadData():
     d = pd.DataFrame()
@@ -111,27 +113,27 @@ def LoadData():
 
 
         if (mode == "Advanced") & (CST == "Preset Cohorts"):
-            cohort["cohort"] = cohort_name
+            cohort.loc[:,"cohort"] = cohort_name
         else:
             if COI == "":
-                cohort["cohort"] = "COI"
+                cohort.loc[:,"cohort"] = "COI"
             else:
-                cohort["cohort"] = cohort_name
+                cohort.loc[:,"cohort"] = cohort_name
 
             if OD == "All Others":
-                d2 = dat[~dat.study_arm.isin(select_arms)]
-                d2["cohort"] = OD
+                d2 = dat.loc[~dat.study_arm.isin(select_arms)]
+                d2.loc["cohort"] = OD
                 d1 = d1.append(d2)
             elif OD == "All Other PD":
-                d2 = dat[(~dat.study_arm.isin(select_arms)) & (dat.study_arm.str.contains("_PD"))]
-                d2["cohort"] = OD
+                d2 = dat.loc[(~dat.study_arm.isin(select_arms)) & (dat.study_arm.str.contains("_PD"))]
+                d2.loc["cohort"] = OD
                 d1 = d1.append(d2)
             elif OD == "All Other HC":
-                d2 = dat[(~dat.study_arm.isin(select_arms)) & (dat.study_arm.str.contains("_HC"))]
-                d2["cohort"] = OD
+                d2 = dat.loc[(~dat.study_arm.isin(select_arms)) & (dat.study_arm.str.contains("_HC"))]
+                d2.loc["cohort"] = OD
                 d1 = d1.append(d2)
 
-        d = pd.concat([d,cohort], ignore_index=True, axis=0)
+        d = pd.concat([d,cohort], ignore_index=True, axis=0).astype(str)
     return d
 
 
