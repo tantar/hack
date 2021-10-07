@@ -408,7 +408,8 @@ if viz == "Tables":
 
     # display minimum and maximum for listed variables
     # min_max = ['Height']
-
+    
+    st.write(d.head(50))
     if not columns:
         st.warning("No Variable Has Been Selected")
     elif gby == "None":
