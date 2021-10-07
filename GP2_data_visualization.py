@@ -15,6 +15,7 @@ from lifelines import KaplanMeierFitter
 import matplotlib.pyplot as plt
 # pd.set_option('display.max_rows', 1000)
 
+
 @st.cache
 def MeanSD(series) :
     mean = series.mean().round(1)
@@ -27,7 +28,6 @@ def MedQ13(series) :
     SD = series.quantile([.25,.75])
     out = str(median) + "[" + str(series.quantile(.25).round(1)) + "," + str(series.quantile(.75).round(1))  + "]"
     return out
-
 @st.cache
 def LoadReqs():
     # Creates list of file names, datasets, and dataset names
@@ -47,6 +47,7 @@ def LoadReqs():
         for dn in d_sets:
             cohort_name = re.sub("[_procesdvat.\\\\]", "", dn)
             cohort = pd.read_csv(dn)
+            cohort = cohort.astype(str)
 
             # LS1 is unique in that it's study_arm refers to an experimental arm rather than phenotypic one
             if "LS1" in cohort_name:
@@ -98,13 +99,12 @@ def LoadReqs():
         info = pd.read_csv("info_table.csv")
 
     return study_arms, info, ref, d_sets
-
 @st.cache
 def LoadData():
     d = pd.DataFrame()
     for dn in d_sets:
         cohort_name = re.sub("[_procesdvat.\\\\]", "", dn)
-        cohort = pd.read_csv(dn) #usecols = ['participant_id',"visit_month","study_arm","Phenotype",'primary_diagnosis',"age_at_baseline","age_at_diagnosis"])
+        cohort = pd.read_csv(dn,low_memory=False) #usecols = ['participant_id',"visit_month","study_arm","Phenotype",'primary_diagnosis',"age_at_baseline","age_at_diagnosis"])
 
         if "LS1" in cohort_name:
             cohort.loc[:,"study_arm"] = [cohort_name + "_" + i for i in cohort.Phenotype]
@@ -121,16 +121,16 @@ def LoadData():
                 cohort.loc[:,"cohort"] = cohort_name
 
             if OD == "All Others":
-                d2 = dat.loc[~dat.study_arm.isin(select_arms)]
-                d2.loc["cohort"] = OD
+                d2 = dat[~dat.study_arm.isin(select_arms)]
+                d2["cohort"] = OD
                 d1 = d1.append(d2)
             elif OD == "All Other PD":
-                d2 = dat.loc[(~dat.study_arm.isin(select_arms)) & (dat.study_arm.str.contains("_PD"))]
-                d2.loc["cohort"] = OD
+                d2 = dat[(~dat.study_arm.isin(select_arms)) & (dat.study_arm.str.contains("_PD"))]
+                d2["cohort"] = OD
                 d1 = d1.append(d2)
             elif OD == "All Other HC":
-                d2 = dat.loc[(~dat.study_arm.isin(select_arms)) & (dat.study_arm.str.contains("_HC"))]
-                d2.loc["cohort"] = OD
+                d2 = dat[(~dat.study_arm.isin(select_arms)) & (dat.study_arm.str.contains("_HC"))]
+                d2["cohort"] = OD
                 d1 = d1.append(d2)
 
         d = pd.concat([d,cohort], ignore_index=True, axis=0)
@@ -157,7 +157,6 @@ else:
 cols = list(ref.Item)
 
 d = LoadData()
-d = d.astype(str)
 
 #In Basic Mode, the first condition will always be met.
 # In Advanced Mode, the user is given the option to use preset cohorts or create their own
