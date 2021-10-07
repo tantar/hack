@@ -104,7 +104,6 @@ def LoadData():
     d = pd.DataFrame()
     for dn in d_sets:
         cohort_name = re.sub("[_procesdvat.\\/]", "", dn)
-        st.write(cohort_name)
         cohort = pd.read_csv(dn,low_memory=False) #usecols = ['participant_id',"visit_month","study_arm","Phenotype",'primary_diagnosis',"age_at_baseline","age_at_diagnosis"])
 
         if "LS1" in cohort_name:
@@ -185,12 +184,9 @@ else:
 # else:
 #     d1 = dat.copy()
 
-st.write(select_data)
-st.write(d.head(50))
+
 
 d = d[d.study_arm.isin(select_data)]
-
-st.write(d.head(50))
 
 #If no cohorts have been selected, the apps halt
 if not select_data:
