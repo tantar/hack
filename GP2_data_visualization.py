@@ -1,4 +1,7 @@
 # Loads libraries required for the app
+from warnings import simplefilter
+simplefilter(action='ignore', category=DeprecationWarning)
+
 import streamlit as st
 import pandas as pd
 import numpy as np
