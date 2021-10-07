@@ -33,7 +33,7 @@ def LoadReqs():
     # Creates list of file names, datasets, and dataset names
     files = glob.glob(f'*.csv')
     d_sets = glob.glob(f'data/*.csv')
-    d_names = [re.sub("[procesdvat.\\\\]", "", i) for i in d_sets]
+    d_names = [re.sub("[procesdvat.\\/]", "", i) for i in d_sets]
 
     # The Reference sheet contains info on all possible columns in GP2, facilitating easier categorization for any cohort
     ref = pd.read_csv("Reference.csv")
@@ -45,7 +45,7 @@ def LoadReqs():
     if any(i not in files for i in ["study_arms.csv", "info_table.csv"]):
         st.warning("Missing Files Detected, Rewriting Study Arms and Info Table")
         for dn in d_sets:
-            cohort_name = re.sub("[_procesdvat.\\]", "", dn)
+            cohort_name = re.sub("[_procesdvat.\\/]", "", dn)
             cohort = pd.read_csv(dn)
             cohort = cohort.astype(str)
 
@@ -103,7 +103,7 @@ def LoadReqs():
 def LoadData():
     d = pd.DataFrame()
     for dn in d_sets:
-        cohort_name = re.sub("[_procesdvat.\\\\]", "", dn)
+        cohort_name = re.sub("[_procesdvat.\\/]", "", dn)
         st.write(cohort_name)
         cohort = pd.read_csv(dn,low_memory=False) #usecols = ['participant_id',"visit_month","study_arm","Phenotype",'primary_diagnosis',"age_at_baseline","age_at_diagnosis"])
 
@@ -177,8 +177,8 @@ else:
                           ["No Comparison", "All Others", "All Other PD", "All Other HC"])
 
 
-# select_arms = [x.replace(re.sub("[procesdvat.\\\\]", "", dn), '') for x in select_data if
-#                re.sub("[procesdvat.\\\\]", "", dn) in x]
+# select_arms = [x.replace(re.sub("[procesdvat.\\/]", "", dn), '') for x in select_data if
+#                re.sub("[procesdvat.\\/]", "", dn) in x]
 
 # if cohort_name not in ["LS1", "PROBAND"]:
 #     d1 = dat[dat.study_arm.isin(select_arms)]
